@@ -1,0 +1,17 @@
+# docker compose run --rm factory "Research a company and write a briefing"
+#
+# Reads ANTHROPIC_API_KEY from .env. Generated projects and crew output are
+# bind-mounted, so they appear in the repo as if the factory had run natively.
+
+services:
+  factory:
+    build: .
+    image: agent-factory
+    env_file: .env
+    volumes:
+      - ./generated:/app/generated
+      - ./workspace:/app/workspace
+      # Generated crews may declare output_file paths of their own; these are
+      # the two the sample briefing crew uses.
+      - ./research:/app/research
+      - ./briefings:/app/briefings

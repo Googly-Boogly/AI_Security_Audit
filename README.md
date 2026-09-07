@@ -50,6 +50,31 @@ write_project(spec)                                   # generated/<crew>/
 result = build_crew(spec).kickoff(inputs={"company": "Acme"})
 ```
 
+## Docker
+
+```bash
+cp .env.example .env      # add your ANTHROPIC_API_KEY
+docker compose run --rm factory "Research a company and write an investment briefing"
+```
+
+`generated/`, `workspace/`, `research/` and `briefings/` are bind-mounted, so
+projects and crew output appear in the repo exactly as if the factory had run
+natively. The container runs as uid 1000, so what it writes stays editable on the
+host.
+
+Without compose:
+
+```bash
+docker build -t agent-factory .
+docker run --rm --env-file .env -v "$PWD/generated:/app/generated" \
+    agent-factory "your brief here"
+```
+
+The image is a runtime for the factory, not for the crews it generates — each
+generated project ships its own `pyproject.toml` and is installed and run on its
+own. The key is never baked in; it is passed at run time and `.env` is excluded
+via `.dockerignore`.
+
 ## How it holds together
 
 | Module | Role |
@@ -60,9 +85,37 @@ result = build_crew(spec).kickoff(inputs={"company": "Acme"})
 | `builder.py` | Blueprint → live `Agent` / `Task` / `Crew`. No LLM involved. |
 | `codegen.py` | Blueprint → `config/*.yaml` + `crew.py` + `blueprint.json`. |
 
-**Generated output is a normal CrewAI project.** `config/agents.yaml`,
-`config/tasks.yaml` and a `@CrewBase` class — the layout CrewAI's own scaffolding
-produces. Nothing about it depends on the factory once written.
+**Generated output is a standalone CrewAI project** — the same layout
+`crewai create crew` scaffolds, with nothing importing back into `agent_factory`:
+
+```
+generated/<crew_name>/
+  pyproject.toml          console scripts: run_crew, train, replay, test
+  README.md               inputs, agents, tasks, how to run
+  .env.example
+  blueprint.json          rebuild it with the factory, no model call
+  src/<crew_name>/
+    crew.py               the @CrewBase class
+    llm.py                model configuration
+    main.py               entry points
+    config/agents.yaml    role / goal / backstory
+    config/tasks.yaml     description / expected_output / agent / context
+    tools/                this crew's own copy of its tools
+```
+
+Copy that directory anywhere and run it:
+
+```bash
+cd generated/<crew_name>
+cp .env.example .env      # add your key
+pip install -e .
+run_crew company_name="Acme"
+```
+
+Tools registered with the factory at runtime have no source to copy, so they are
+exported as explicit stubs in `tools/custom_tools.py` that raise
+`NotImplementedError` — the project still assembles, and the gap is visible
+rather than silent.
 
 ### Why a generated crew can't be broken
 

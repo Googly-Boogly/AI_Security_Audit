@@ -115,7 +115,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.no_write:
         root = write_project(spec, args.out)
-        print(f"  written to {root}/  (crew.py, config/, blueprint.json)")
+        print(f"  written to {root}/  — standalone project: pyproject.toml, "
+              f"src/{spec.name}/, blueprint.json")
+        print(f"  run it with:  cd {root} && pip install -e . && run_crew")
 
     if not args.run:
         placeholders = spec.placeholders()

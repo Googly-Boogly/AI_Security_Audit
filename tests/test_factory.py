@@ -103,11 +103,53 @@ def test_build_crew_refuses_a_broken_spec(spec, registry) -> None:
 
 # -- codegen --------------------------------------------------------------
 
-def test_generated_project_round_trips(spec, tmp_path) -> None:
+def test_generated_project_has_the_standard_layout(spec, tmp_path) -> None:
     root = write_project(spec, tmp_path)
     written = {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()}
-    assert {"crew.py", "blueprint.json", "config/agents.yaml", "config/tasks.yaml"} <= written
+    pkg = f"src/{spec.name}"
+    assert {
+        "pyproject.toml",
+        "README.md",
+        ".env.example",
+        "blueprint.json",
+        f"{pkg}/crew.py",
+        f"{pkg}/llm.py",
+        f"{pkg}/main.py",
+        f"{pkg}/config/agents.yaml",
+        f"{pkg}/config/tasks.yaml",
+        f"{pkg}/tools/__init__.py",
+        f"{pkg}/tools/workspace_tools.py",
+    } <= written
+
+
+def test_generated_project_round_trips(spec, tmp_path) -> None:
+    root = write_project(spec, tmp_path)
     assert CrewSpec.model_validate_json((root / "blueprint.json").read_text()) == spec
+
+
+def test_generated_project_does_not_import_the_factory(spec, tmp_path) -> None:
+    """The export must stand alone; importing agent_factory would break that."""
+    root = write_project(spec, tmp_path)
+    for path in (root / "src").rglob("*.py"):
+        assert "agent_factory" not in path.read_text(), path
+
+
+def test_generated_project_compiles(spec, tmp_path) -> None:
+    import py_compile
+
+    root = write_project(spec, tmp_path)
+    for path in (root / "src").rglob("*.py"):
+        py_compile.compile(str(path), doraise=True)
+
+
+def test_unexportable_tools_become_explicit_stubs(spec, tmp_path) -> None:
+    """A runtime-registered tool has no source to copy, so it must be stubbed."""
+    spec.agents[0].tools = ["read_file", "bespoke_scraper"]
+    root = write_project(spec, tmp_path)
+    custom = (root / "src" / spec.name / "tools" / "custom_tools.py").read_text()
+    assert "BespokeScraperTool" in custom
+    assert "NotImplementedError" in custom
+    assert "BespokeScraperTool" in (root / "src" / spec.name / "tools" / "__init__.py").read_text()
 
 
 # -- guardrail ------------------------------------------------------------

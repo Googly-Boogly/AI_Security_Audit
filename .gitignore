@@ -6,3 +6,7 @@ __pycache__/
 workspace/
 generated/
 .env
+
+# Output from generated crews that declare output_file paths
+research/
+briefings/
